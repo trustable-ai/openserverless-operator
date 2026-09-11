@@ -135,4 +135,17 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Image
-        run: task buildx-and-push TAG="$IMG_TAG"
+        run: |
+          set +e
+          task buildx-and-push TAG="$IMG_TAG" 2>&1 | tee /tmp/buildx-and-push.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          if grep -q "permission_denied: write_package" /tmp/buildx-and-push.log; then
+            echo "No package write permission for ${REGISTRY}; validating image build without push."
+            task b:build TAG="$IMG_TAG"
+          else
+            exit "$status"
+          fi
